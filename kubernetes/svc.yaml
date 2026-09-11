@@ -1,12 +1,17 @@
 apiVersion: v1
 kind: Service
+
 metadata:
   name: my-app-service
+
 spec:
-  type: LoadBalancer
+  type: NodePort
+
   selector:
     app: my-app
+
   ports:
-  - protocol: TCP
-    port: 80        # Exposes on port 80
-    targetPort: 3000  # Maps to the app's port 3000
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+      nodePort: 30080
