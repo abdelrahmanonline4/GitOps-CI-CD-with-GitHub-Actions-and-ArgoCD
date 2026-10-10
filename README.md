@@ -1,5 +1,5 @@
 # GitOps CI/CD with GitHub Actions, Docker, Kubernetes & ArgoCD  .
-
+....
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-CI-blue?logo=githubactions)
 ![Docker](https://img.shields.io/badge/Docker-Containerization-blue?logo=docker)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Orchestration-blue?logo=kubernetes)
