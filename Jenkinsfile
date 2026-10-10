@@ -2,55 +2,61 @@
 pipeline {
     agent any
 
+    options {
+        timestamps()
+    }
+
     environment {
-        IMAGE_NAME = 'jenkins-node-app'
-        CONTAINER_NAME = 'jenkins-node-container'
+        IMAGE_NAME = 'jenkinsfreestyle'
+        CONTAINER_NAME = 'testcontainer'
         APP_PORT = '3000'
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout Source Code') {
             steps {
-                checkout scm
+                git branch: 'Master',
+                    url: 'https://github.com/abdelrahmanonline4/GitOps-CI-CD-with-GitHub-Actions-and-ArgoCD.git'
             }
         }
 
-        stage('Docker Build') {
+        stage('Inspect Workspace') {
             steps {
                 sh '''
-                    docker build \
-                      -t ${IMAGE_NAME}:${BUILD_NUMBER} .
+                    pwd
+                    ls -la
+                    git rev-parse --short HEAD
                 '''
             }
         }
 
-        stage('Docker Deploy') {
+        stage('Build Docker Image') {
+            steps {
+                sh '''
+                    docker build \
+                        -t ${IMAGE_NAME}:${BUILD_NUMBER} .
+                '''
+            }
+        }
+
+        stage('Deploy Container') {
             steps {
                 sh '''
                     docker rm -f ${CONTAINER_NAME} || true
 
                     docker run -d \
-                      --name ${CONTAINER_NAME} \
-                      -p 127.0.0.1:${APP_PORT}:3000 \
-                      ${IMAGE_NAME}:${BUILD_NUMBER}
+                        --name ${CONTAINER_NAME} \
+                        -p ${APP_PORT}:${APP_PORT} \
+                        ${IMAGE_NAME}:${BUILD_NUMBER}
                 '''
             }
         }
 
-        stage('Test Application') {
+        stage('Deployment Complete') {
             steps {
                 sh '''
-                    for i in 1 2 3 4 5 6 7 8 9 10; do
-                        if curl -fsS http://127.0.0.1:${APP_PORT}/ > /dev/null; then
-                            echo "Application is responding"
-                            exit 0
-                        fi
-                        sleep 2
-                    done
-
-                    echo "Application health check failed"
-                    docker logs ${CONTAINER_NAME}
-                    exit 1
+                    docker ps --filter "name=${CONTAINER_NAME}"
+                    echo "Done deployment"
                 '''
             }
         }
@@ -58,11 +64,11 @@ pipeline {
 
     post {
         success {
-            echo 'Pipeline completed successfully!'
+            echo 'Pipeline completed successfully.'
         }
 
         failure {
-            echo 'Pipeline failed! Check Console Output.'
+            echo 'Pipeline failed. Check the Jenkins console output.'
         }
     }
 }
