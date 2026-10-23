@@ -4,6 +4,7 @@ pipeline {
 
     options {
         timestamps()
+        skipDefaultCheckout(true)
     }
 
     environment {
@@ -31,6 +32,14 @@ pipeline {
         }
 
         stage('Build Docker Image') {
+            when {
+                anyOf {
+                    changeset 'Dockerfile'
+                    changeset 'app.js'
+                    changeset 'package.json'
+                }
+            }
+
             steps {
                 sh '''
                     docker build \
@@ -40,6 +49,14 @@ pipeline {
         }
 
         stage('Deploy Container') {
+            when {
+                anyOf {
+                    changeset 'Dockerfile'
+                    changeset 'app.js'
+                    changeset 'package.json'
+                }
+            }
+
             steps {
                 sh '''
                     docker rm -f ${CONTAINER_NAME} || true
@@ -53,6 +70,14 @@ pipeline {
         }
 
         stage('Deployment Complete') {
+            when {
+                anyOf {
+                    changeset 'Dockerfile'
+                    changeset 'app.js'
+                    changeset 'package.json'
+                }
+            }
+
             steps {
                 sh '''
                     docker ps --filter "name=${CONTAINER_NAME}"
