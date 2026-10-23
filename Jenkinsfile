@@ -5,6 +5,21 @@ pipeline {
     options {
         timestamps()
         skipDefaultCheckout(true)
+        disableConcurrentBuilds()
+    }
+
+    parameters {
+        choice(
+            name: 'ACTION',
+            choices: ['DEPLOY', 'ROLLBACK'],
+            description: 'Select Deploy or Rollback'
+        )
+
+        string(
+            name: 'ROLLBACK_VERSION',
+            defaultValue: '',
+            description: 'Previous Docker Image tag (e.g. 10)'
+        )
     }
 
     environment {
@@ -16,6 +31,9 @@ pipeline {
     stages {
 
         stage('Checkout Source Code') {
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
             steps {
                 git branch: 'Master',
                     url: 'https://github.com/abdelrahmanonline4/GitOps-CI-CD-with-GitHub-Actions-and-ArgoCD.git'
@@ -23,6 +41,9 @@ pipeline {
         }
 
         stage('Inspect Workspace') {
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
             steps {
                 sh '''
                     pwd
@@ -34,13 +55,8 @@ pipeline {
 
         stage('Build Docker Image') {
             when {
-                anyOf {
-                    changeset 'Dockerfile'
-                    changeset 'app.js'
-                    changeset 'package.json'
-                }
+                expression { params.ACTION == 'DEPLOY' }
             }
-
             steps {
                 sh '''
                     docker build \
@@ -49,37 +65,26 @@ pipeline {
             }
         }
 
-        // NEW STAGE: Approval Gate
         stage('Production Approval Gate') {
             when {
-                anyOf {
-                    changeset 'Dockerfile'
-                    changeset 'app.js'
-                    changeset 'package.json'
-                }
+                expression { params.ACTION == 'DEPLOY' }
             }
-
             steps {
                 timeout(time: 10, unit: 'MINUTES') {
                     input(
-                        message: 'Do you approve deploying this application to Production?',
+                        message: 'Approve Production Deployment?',
                         ok: 'Approve Deployment'
                     )
                 }
 
-                echo 'Deployment Approved! Continuing...'
+                echo 'Deployment Approved!'
             }
         }
 
         stage('Deploy Container') {
             when {
-                anyOf {
-                    changeset 'Dockerfile'
-                    changeset 'app.js'
-                    changeset 'package.json'
-                }
+                expression { params.ACTION == 'DEPLOY' }
             }
-
             steps {
                 sh '''
                     docker rm -f ${CONTAINER_NAME} || true
@@ -92,19 +97,48 @@ pipeline {
             }
         }
 
-        stage('Deployment Complete') {
+        stage('Rollback Previous Version') {
             when {
-                anyOf {
-                    changeset 'Dockerfile'
-                    changeset 'app.js'
-                    changeset 'package.json'
+                expression { params.ACTION == 'ROLLBACK' }
+            }
+            steps {
+                script {
+                    def version = params.ROLLBACK_VERSION.trim()
+
+                    if (!(version ==~ /^[0-9]+$/)) {
+                        error('Enter a valid numeric ROLLBACK_VERSION.')
+                    }
+
+                    withEnv(["TARGET_VERSION=${version}"]) {
+                        sh '''
+                            set -eu
+
+                            echo "Checking previous Docker Image..."
+
+                            docker image inspect \
+                                "${IMAGE_NAME}:${TARGET_VERSION}" \
+                                > /dev/null
+
+                            echo "Rolling back to version ${TARGET_VERSION}"
+
+                            docker rm -f "${CONTAINER_NAME}" || true
+
+                            docker run -d \
+                                --name "${CONTAINER_NAME}" \
+                                -p "${APP_PORT}:${APP_PORT}" \
+                                "${IMAGE_NAME}:${TARGET_VERSION}"
+
+                            echo "Rollback container started."
+                        '''
+                    }
                 }
             }
+        }
 
+        stage('Deployment Complete') {
             steps {
                 sh '''
                     docker ps --filter "name=${CONTAINER_NAME}"
-                    echo "Done deployment"
                 '''
             }
         }
@@ -116,11 +150,11 @@ pipeline {
         }
 
         failure {
-            echo 'Pipeline failed. Check the Jenkins console output.'
+            echo 'Pipeline failed. Check Jenkins console output.'
         }
 
         aborted {
-            echo 'Pipeline aborted or approval timed out.'
+            echo 'Pipeline aborted.'
         }
     }
 }
