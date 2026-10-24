@@ -94,7 +94,12 @@ pipeline {
 
         stage('Deployment Complete') {
             when {
-                           }
+                anyOf {
+                    changeset 'Dockerfile'
+                    changeset 'app.js'
+                    changeset 'package.json'
+                }
+            }
 
             steps {
                 sh '''
