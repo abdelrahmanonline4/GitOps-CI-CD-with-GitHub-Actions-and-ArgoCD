@@ -14,6 +14,7 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout Source Code') {
             steps {
                 git branch: 'Master',
@@ -48,6 +49,28 @@ pipeline {
             }
         }
 
+        // NEW STAGE: Approval Gate
+        stage('Production Approval Gate') {
+            when {
+                anyOf {
+                    changeset 'Dockerfile'
+                    changeset 'app.js'
+                    changeset 'package.json'
+                }
+            }
+
+            steps {
+                timeout(time: 10, unit: 'MINUTES') {
+                    input(
+                        message: 'Do you approve deploying this application to Production?',
+                        ok: 'Approve Deployment'
+                    )
+                }
+
+                echo 'Deployment Approved! Continuing...'
+            }
+        }
+
         stage('Deploy Container') {
             when {
                 anyOf {
@@ -71,12 +94,7 @@ pipeline {
 
         stage('Deployment Complete') {
             when {
-                anyOf {
-                    changeset 'Dockerfile'
-                    changeset 'app.js'
-                    changeset 'package.json'
-                }
-            }
+                           }
 
             steps {
                 sh '''
@@ -94,6 +112,10 @@ pipeline {
 
         failure {
             echo 'Pipeline failed. Check the Jenkins console output.'
+        }
+
+        aborted {
+            echo 'Pipeline aborted or approval timed out.'
         }
     }
 }
